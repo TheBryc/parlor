@@ -161,16 +161,6 @@
       padding: 3rem 1.5rem 4rem;
     }
     .hero { padding: 4rem 1.5rem; }
-    .col {
-      display: flex;
-      flex-direction: column;
-    }
-    .col:first-child .detail-block:nth-child(n+6) {
-      order: 10;
-    }
-    .col:last-child {
-      order: 2;
-    }
   }
 
   .col h2 {
@@ -357,9 +347,10 @@
   .calendar-btn:hover { background: #073d80; }
   .calendar-btn:active { transform: translateY(1px); }
 
+  .staff-link { color: inherit; opacity: .45; text-decoration: none; font-size: .8rem; }
+.staff-link:hover { opacity: .8; }
+  
   /* FOOTER */
-  .staff-link { color:inherit; opacity:.45; text-decoration:none; font-size:.8rem; }
-  .staff-link:hover { opacity:.8; }
   footer {
     border-top: 1px solid var(--border);
     padding: 2rem;
@@ -665,7 +656,7 @@
   // Calendar export functions
   const eventDetails = {
     title: 'The Case for BRYC Breakfast',
-    date: '20261022',
+    date: '20241022',
     startTime: '080000',
     endTime: '090000',
     location: '460 North 11th Street, Baton Rouge, LA 70802',
@@ -674,8 +665,8 @@
 
   // Google Calendar
   document.getElementById('add-google').addEventListener('click', () => {
-    const startDateTime = '20261022T080000';
-    const endDateTime = '20261022T090000';
+    const startDateTime = '20241022T080000';
+    const endDateTime = '20241022T090000';
     const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventDetails.title)}&dates=${startDateTime}/${endDateTime}&location=${encodeURIComponent(eventDetails.location)}&details=${encodeURIComponent(eventDetails.description)}`;
     window.open(url, '_blank');
   });
@@ -688,10 +679,10 @@ PRODID:-//BRYC//The Case for BRYC//EN
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
 BEGIN:VEVENT
-UID:bryc-oct22-2026@thebryc.org
+UID:bryc-oct22-2024@thebryc.org
 DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z
-DTSTART:20261022T080000
-DTEND:20261022T090000
+DTSTART:20241022T080000
+DTEND:20241022T090000
 SUMMARY:${eventDetails.title}
 LOCATION:${eventDetails.location}
 DESCRIPTION:${eventDetails.description.replace(/\n/g, '\\n')}
@@ -709,8 +700,8 @@ END:VCALENDAR`;
 
   // Outlook
   document.getElementById('add-outlook').addEventListener('click', () => {
-    const startDateTime = '20261022T080000';
-    const endDateTime = '20261022T090000';
+    const startDateTime = '20241022T080000';
+    const endDateTime = '20241022T090000';
     const url = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(eventDetails.title)}&startdt=${startDateTime}&enddt=${endDateTime}&location=${encodeURIComponent(eventDetails.location)}&body=${encodeURIComponent(eventDetails.description)}`;
     window.open(url, '_blank');
   });

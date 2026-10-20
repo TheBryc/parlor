@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Event Task Board (Staff Only)</title>
+<link rel="stylesheet" href="https://use.typekit.net/hte4vgd.css">
+<style>
+  :root { --navy:#282561; --blue:#094d9e; --line:#e4e6ee; --muted:#5a6170; --bg:#f6f7fb; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"proxima-nova",-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:#1d1d1f; font-size:15px; }
+  header { background:#fff; border-bottom:1px solid var(--line); padding:18px 24px; }
+  .hrow { display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+  #eventName { font:inherit; font-size:1.4rem; font-weight:800; color:var(--navy); border:none; background:transparent; padding:0; flex:1; min-width:260px; }
+  #eventName:focus { outline:none; border-bottom:2px solid var(--blue); }
+  .who { color:var(--muted); font-size:14px; display:flex; gap:10px; align-items:center; }
+  .progress { color:var(--muted); margin-top:4px; font-weight:600; }
+  .status { color:var(--muted); font-size:13px; margin-top:4px; min-height:18px; }
+  .status.err { color:#b42318; }
+  main { max-width:960px; margin:0 auto; padding:20px 16px 60px; }
+  .panel { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
+  .center { text-align:center; padding:40px 20px; }
+  .center h2 { color:var(--navy); margin:0 0 16px; font-size:1.3rem; }
+  .muted { color:var(--muted); }
+  input, select, button { font:inherit; font-size:14px; }
+  input[type=text], input[type=date], select { border:1px solid #c9cfdd; border-radius:6px; padding:7px 9px; background:#fff; width:100%; min-width:0; }
+  button { border:none; border-radius:6px; padding:8px 12px; cursor:pointer; background:#eef1f8; color:var(--navy); font-weight:700; }
+  button.primary { background:var(--blue); color:#fff; }
+  button:hover { filter:brightness(.96); }
+  .addform { display:grid; grid-template-columns:2.2fr 1.2fr 0.9fr 1fr 1fr auto; gap:8px; align-items:center; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
+  .toolbar .group { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .toolbar label { color:var(--muted); font-weight:600; display:flex; gap:6px; align-items:center; }
+  .row { display:grid; grid-template-columns:24px 28px 2.6fr 1fr 1.2fr 0.9fr 1.1fr 0.9fr 40px; gap:8px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 10px; margin-bottom:8px; }
+  .row.done .txt { text-decoration:line-through; color:var(--muted); }
+  .row.dragging { opacity:.4; }
+  .row.over { border-color:var(--blue); box-shadow:0 0 0 2px rgba(9,77,158,.2); }
+  .handle { cursor:grab; color:#9aa1b2; text-align:center; font-size:18px; user-select:none; }
+  .chk { width:18px; height:18px; accent-color:var(--blue); }
+  .pri { font-size:12px; font-weight:800; border-radius:999px; padding:4px 0; text-transform:uppercase; letter-spacing:.04em; }
+  .p-High { background:#fde8e6; color:#b42318; }
+  .p-Medium { background:#fff4d6; color:#8a6100; }
+  .p-Low { background:#e8f5ef; color:#00775f; }
+  .move { display:flex; gap:4px; }
+  .move button { padding:4px 7px; font-size:12px; }
+  .del { background:#fdecec; color:#b42318; padding:6px 0; }
+  .empty { color:var(--muted); text-align:center; padding:30px; }
+  @media (max-width:820px) {
+    .addform { grid-template-columns:1fr 1fr; }
+    .row { grid-template-columns:1fr 1fr; }
+    .row .handle { display:none; }
+    .row .txt, .row .move { grid-column:1 / -1; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hrow">
+    <input id="eventName" aria-label="Event name" disabled>
+    <div class="who" id="who" hidden>
+      <span id="whoName"></span>
+      <button type="button" id="signout">Sign out</button>
+    </div>
+  </div>
+  <div class="progress" id="progress"></div>
+  <div class="status" id="status"></div>
+</header>
+
+<main>
+  <section class="panel center" id="signin">
+    <h2>Staff sign-in</h2>
+    <p class="muted">Sign in with your thebryc.org Google account to open the task board.</p>
+    <div id="gbtn" style="display:inline-block;margin-top:14px"></div>
+    <p class="muted" id="signinMsg" style="margin-top:14px;color:#b42318"></p>
+  </section>
+
+  <div id="app" hidden>
+    <div class="panel">
+      <form class="addform" id="addForm">
+        <input type="text" id="newText" placeholder="New task" required>
+        <input type="text" id="newGroup" placeholder="Group (e.g., Setup)" list="groupList">
+        <select id="newPriority"><option>High</option><option selected>Medium</option><option>Low</option></select>
+        <input type="text" id="newOwner" placeholder="Owner">
+        <input type="date" id="newDue" aria-label="Due date">
+        <button class="primary" type="submit">Add</button>
+      </form>
+      <datalist id="groupList"><option value="Setup"><option value="Invitations"><option value="Logistics"><option value="Event day"></datalist>
+    </div>
+
+    <div class="panel toolbar">
+      <div class="group">
+        <button id="sortBtn" type="button">Sort by priority</button>
+        <label><input type="checkbox" id="hideDone"> Hide completed</label>
+      </div>
+      <div class="group">
+        <button id="exportCsv" type="button">Export CSV</button>
+      </div>
+    </div>
+
+    <div id="list"></div>
+  </div>
+</main>
+
+<script src="https://accounts.google.com/gsi/client" async defer onload="initGoogle()"></script>
+<script>
+  // ---- Configuration ----
+  const CONFIG = {
+    googleClientId: '32144070815-dlraf8atucau5biu320469otp70h8upu.apps.googleusercontent.com',
+    appsScriptUrl: 'https://script.google.com/macros/s/AKfycbyW2C1BItxTk-yJKgNidKpUYezhJWROLhf3kuiWXQC1NltyuOo7NmiVk3Pnp061452r7g/exec'
+  };
+  const SESSION_KEY = 'brycTasksSession';
+  const PRI_ORDER = { High: 0, Medium: 1, Low: 2 };
+
+  let session = sessionStorage.getItem(SESSION_KEY);
+  let state = { tasks: [], version: 0, eventName: '', lastEditor: '', hideDone: false };
+  let saveTimer = null, saving = false, pendingSave = false;
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const newId = () => Date.now() * 1000 + Math.floor(Math.random() * 1000);
+
+  // ---- Server calls ----
+  async function api(action, data = {}) {
+    const res = await fetch(CONFIG.appsScriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action, token: session, ...data })
+    });
+    const out = await res.json();
+    if (out.error === 'unauthorized') { signOut('Your session expired. Please sign in again.'); throw new Error('unauthorized'); }
+    if (out.error) { const e = new Error(out.error); e.conflict = out.error === 'conflict'; throw e; }
+    return out;
+  }
+
+  // ---- Sign-in ----
+  function initGoogle() {
+    google.accounts.id.initialize({ client_id: CONFIG.googleClientId, callback: onCredential });
+    google.accounts.id.renderButton($('gbtn'), { theme: 'outline', size: 'large', text: 'signin_with' });
+    if (session) boot(); else showSignin();
+  }
+
+  async function onCredential(resp) {
+    $('signinMsg').textContent = '';
+    try {
+      const out = await api('signin', { credential: resp.credential });
+      session = out.token;
+      sessionStorage.setItem(SESSION_KEY, session);
+      $('whoName').textContent = out.name;
+      boot();
+    } catch (e) {
+      $('signinMsg').textContent = e.message;
+    }
+  }
+
+  function showSignin() {
+    $('app').hidden = true; $('signin').hidden = false; $('who').hidden = true;
+    $('eventName').disabled = true;
+  }
+
+  function signOut(message) {
+    sessionStorage.removeItem(SESSION_KEY);
+    session = null;
+    showSignin();
+    if (message) $('signinMsg').textContent = message;
+  }
+  $('signout').addEventListener('click', () => signOut(''));
+
+  // ---- Load and save ----
+  async function boot() {
+    try {
+      const out = await api('load');
+      state.tasks = out.tasks; state.version = out.version; state.eventName = out.eventName; state.lastEditor = out.lastEditor;
+      $('eventName').value = state.eventName;
+      $('signin').hidden = true; $('app').hidden = false; $('who').hidden = false; $('eventName').disabled = false;
+      setStatus(state.lastEditor ? `Last saved by ${state.lastEditor}` : 'Ready', false);
+      render();
+    } catch (e) {
+      if (e.message !== 'unauthorized') setStatus('Could not load the board. Please refresh.', true);
+    }
+  }
+
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    setStatus('Saving…', false);
+    saveTimer = setTimeout(doSave, 700);
+  }
+
+  async function doSave() {
+    if (saving) { pendingSave = true; return; }
+    saving = true;
+    try {
+      const out = await api('save', { baseVersion: state.version, tasks: state.tasks, eventName: state.eventName });
+      state.version = out.version; state.lastEditor = out.lastEditor;
+      setStatus(`All changes saved at ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`, false);
+    } catch (e) {
+      if (e.message === "unauthorized") { /* handled in api() */ }
+      else if (e.conflict) {
+        setStatus('Someone else saved changes. Reloading the latest version. Re-enter your last edit if it is missing.', true);
+        setTimeout(boot, 1500);
+      } else {
+        setStatus('Not saved. Check your connection; your next change will try again.', true);
+      }
+    } finally {
+      saving = false;
+      if (pendingSave) { pendingSave = false; doSave(); }
+    }
+  }
+
+  function setStatus(msg, isErr) {
+    $('status').textContent = msg;
+    $('status').className = 'status' + (isErr ? ' err' : '');
+  }
+
+  // ---- Board ----
+  function renderProgress() {
+    const done = state.tasks.filter(t => t.done).length;
+    $('progress').textContent = `${done} of ${state.tasks.length} tasks done`;
+  }
+
+  function render() {
+    const list = $('list');
+    const visible = state.tasks.filter(t => !(state.hideDone && t.done));
+    list.innerHTML = visible.length ? visible.map(t => `
+      <div class="row${t.done ? ' done' : ''}" draggable="true" data-id="${t.id}">
+        <div class="handle" title="Drag to reorder">&#8942;&#8942;</div>
+        <input type="checkbox" class="chk" data-field="done" ${t.done ? 'checked' : ''} aria-label="Done">
+        <input type="text" class="txt" data-field="text" value="${esc(t.text)}" aria-label="Task">
+        <input type="text" data-field="group" value="${esc(t.group)}" list="groupList" aria-label="Group">
+        <select data-field="priority" class="pri p-${t.priority}" aria-label="Priority">
+          ${['High','Medium','Low'].map(p => `<option ${p === t.priority ? 'selected' : ''}>${p}</option>`).join('')}
+        </select>
+        <input type="text" data-field="owner" value="${esc(t.owner)}" placeholder="Owner" aria-label="Owner">
+        <input type="date" data-field="due" value="${esc(t.due)}" aria-label="Due date">
+        <div class="move">
+          <button type="button" data-act="up" title="Move up">&#8593;</button>
+          <button type="button" data-act="down" title="Move down">&#8595;</button>
+        </div>
+        <button type="button" class="del" data-act="delete" title="Delete task" aria-label="Delete task">&#10005;</button>
+      </div>`).join('')
+      : '<div class="empty">No tasks to show. Add one above.</div>';
+    renderProgress();
+  }
+
+  function changed(rerender) {
+    if (rerender) render();
+    renderProgress();
+    scheduleSave();
+  }
+
+  $('eventName').addEventListener('input', e => { state.eventName = e.target.value; scheduleSave(); });
+
+  $('list').addEventListener('input', e => {
+    const row = e.target.closest('.row'); if (!row) return;
+    const t = state.tasks.find(x => x.id == row.dataset.id);
+    const f = e.target.dataset.field;
+    if (!t || !['text', 'group', 'owner'].includes(f)) return;
+    t[f] = e.target.value;
+    changed(false);
+  });
+
+  $('list').addEventListener('change', e => {
+    const row = e.target.closest('.row'); if (!row) return;
+    const t = state.tasks.find(x => x.id == row.dataset.id);
+    const f = e.target.dataset.field;
+    if (!t || !f) return;
+    t[f] = f === 'done' ? e.target.checked : e.target.value;
+    changed(true);
+  });
+
+  $('list').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-act]'); if (!btn) return;
+    const i = state.tasks.findIndex(x => x.id == btn.closest('.row').dataset.id);
+    const act = btn.dataset.act;
+    if (act === 'delete') { if (!confirm('Delete this task?')) return; state.tasks.splice(i, 1); }
+    else if (act === 'up' && i > 0) [state.tasks[i - 1], state.tasks[i]] = [state.tasks[i], state.tasks[i - 1]];
+    else if (act === 'down' && i < state.tasks.length - 1) [state.tasks[i + 1], state.tasks[i]] = [state.tasks[i], state.tasks[i + 1]];
+    changed(true);
+  });
+
+  let dragId = null;
+  $('list').addEventListener('dragstart', e => {
+    const row = e.target.closest('.row'); if (!row) return;
+    dragId = Number(row.dataset.id);
+    row.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(dragId));
+  });
+  $('list').addEventListener('dragend', () => {
+    document.querySelectorAll('.row.dragging, .row.over').forEach(r => r.classList.remove('dragging', 'over'));
+  });
+  $('list').addEventListener('dragover', e => {
+    const row = e.target.closest('.row'); if (!row) return;
+    e.preventDefault();
+    document.querySelectorAll('.row.over').forEach(r => r.classList.remove('over'));
+    row.classList.add('over');
+  });
+  $('list').addEventListener('drop', e => {
+    const row = e.target.closest('.row'); if (!row || dragId === null) return;
+    e.preventDefault();
+    const targetId = Number(row.dataset.id);
+    if (targetId !== dragId) {
+      const from = state.tasks.findIndex(x => x.id === dragId);
+      const [moved] = state.tasks.splice(from, 1);
+      state.tasks.splice(state.tasks.findIndex(x => x.id === targetId), 0, moved);
+    }
+    dragId = null;
+    changed(true);
+  });
+
+  $('addForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const text = $('newText').value.trim(); if (!text) return;
+    state.tasks.push({
+      id: newId(), text, group: $('newGroup').value.trim(), priority: $('newPriority').value,
+      owner: $('newOwner').value.trim(), due: $('newDue').value, done: false
+    });
+    $('addForm').reset();
+    $('newPriority').value = 'Medium';
+    changed(true);
+  });
+
+  $('sortBtn').addEventListener('click', () => {
+    state.tasks.sort((a, b) => PRI_ORDER[a.priority] - PRI_ORDER[b.priority]);
+    changed(true);
+  });
+
+  $('hideDone').addEventListener('change', e => { state.hideDone = e.target.checked; render(); });
+
+  $('exportCsv').addEventListener('click', () => {
+    const cols = ['Done', 'Priority', 'Task', 'Group', 'Owner', 'Due'];
+    const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [cols.join(',')].concat(state.tasks.map(t =>
+      [t.done ? 'Yes' : 'No', t.priority, t.text, t.group, t.owner, t.due].map(q).join(',')));
+    const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+    const a = document.createElement('a'); a.href = url; a.download = 'event-tasks.csv'; a.click();
+    URL.revokeObjectURL(url);
+  });
+</script>
+</body>
+</html>

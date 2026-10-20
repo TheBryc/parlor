@@ -71,6 +71,34 @@
   .chk { width:18px; height:18px; accent-color:var(--blue); cursor:pointer; }
   .drophint { color:var(--muted); font-size:13px; text-align:center; padding:24px 8px; border:2px dashed #c6cbdb; border-radius:12px; }
 
+  .print-only { display:none; }
+  .printstatus { display:none; font-size:12px; font-weight:800; color:var(--muted); margin-bottom:2px; }
+
+  /* PRINT / SAVE AS PDF */
+  @media print {
+    @page { size: landscape; margin: .4in; }
+    body { background:#fff; font-size:12px; }
+    header { border:none; padding:0 0 6px; }
+    header .hrow, header .who, header .status { display:none !important; }
+    header .progress { color:#333; }
+    main { padding:0; max-width:none; }
+    #app .toolbar, .colbar, .colhead button, .edit, .newcol, .drophint, .chk, .cfoot, .modal { display:none !important; }
+    .print-only { display:block; }
+    .print-header h1 { font-size:20px; color:#282561; margin:0 0 2px; }
+    .print-header div { color:#5a6170; font-size:12px; margin-bottom:10px; }
+    .board { display:flex; flex-wrap:wrap; gap:8px; overflow:visible; align-items:stretch; }
+    .col { flex:1 1 0; min-width:0; background:#fff; border:1px solid #bbb; border-radius:6px; padding:6px; min-height:0; page-break-inside:avoid; }
+    .colhead { padding:6px 8px; font-size:13px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .cards { min-height:0; padding-top:6px; gap:6px; }
+    .card { box-shadow:none; border:1px solid #bbb; border-left-width:5px; padding:8px 10px; cursor:default; break-inside:avoid; page-break-inside:avoid; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .card.done { opacity:1; }
+    .card.done .ctext { text-decoration:line-through; color:#666; }
+    .card .ctext { font-size:13px; margin:4px 0; }
+    .cmeta { font-size:11px; }
+    .printstatus { display:block; }
+    .pill { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
+
   /* EDIT FORM */
   .modal { position:fixed; inset:0; background:rgba(20,18,50,.45); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
   .modal[hidden] { display:none; }
@@ -99,6 +127,11 @@
 </style>
 </head>
 <body>
+
+<div class="print-only print-header">
+  <h1 id="printTitle"></h1>
+  <div id="printDate"></div>
+</div>
 
 <header>
   <div class="hrow">
@@ -129,6 +162,7 @@
       </div>
       <div class="group">
         <button id="exportCsv" type="button">Export CSV</button>
+        <button id="printBtn" type="button">Print / Save as PDF</button>
       </div>
     </div>
     <div id="board" class="board"></div>
@@ -296,6 +330,7 @@
           <input type="checkbox" class="chk" data-act="toggle" ${t.done ? 'checked' : ''} aria-label="Completed">
           <span class="pill p-${t.priority}">${t.priority}</span>
         </div>
+        <div class="printstatus">${t.done ? 'DONE' : 'TO DO'}</div>
         <div class="ctext">${esc(t.text)}</div>
         <div class="cmeta">
           ${t.owner ? `<span>Owner: <b>${esc(t.owner)}</b></span>` : ''}
@@ -539,13 +574,50 @@
   $('hideDone').addEventListener('change', e => { state.hideDone = e.target.checked; render(); });
 
   $('exportCsv').addEventListener('click', () => {
-    const cols = ['Column', 'Done', 'Priority', 'Task', 'Owner', 'Due'];
+    // One column per kanban column; each task is one cell, marked [DONE] or [ ]
+    const cols = columns();
+    const label = c => c === '' ? 'Unsorted' : c;
     const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = [cols.join(',')].concat(state.tasks.map(t =>
-      [t.group, t.done ? 'Yes' : 'No', t.priority, t.text, t.owner, t.due].map(q).join(',')));
-    const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
-    const a = document.createElement('a'); a.href = url; a.download = 'event-tasks.csv'; a.click();
+
+    const header = cols.map(col => {
+      const tasks = state.tasks.filter(t => (t.group || '').trim() === col);
+      const done = tasks.filter(t => t.done).length;
+      return `${label(col)} (${done}/${tasks.length} done)`;
+    });
+
+    const cells = cols.map(col => state.tasks
+      .filter(t => (t.group || '').trim() === col)
+      .map(t => {
+        const extras = [t.owner ? `Owner: ${t.owner}` : '', t.due ? `Due: ${t.due}` : ''].filter(Boolean).join(' | ');
+        return (t.done ? '[DONE] ' : '[ ] ') + t.text + (extras ? `\n${extras}` : '');
+      }));
+
+    const rows = [header];
+    const longest = Math.max(0, ...cells.map(c => c.length));
+    for (let i = 0; i < longest; i++) rows.push(cells.map(c => c[i] ?? ''));
+
+    const csv = '\ufeff' + rows.map(r => r.map(q).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'event-tasks-kanban.csv';
+    a.click();
     URL.revokeObjectURL(url);
+  });
+
+  $('printBtn').addEventListener('click', () => {
+    $('printTitle').textContent = $('eventName').value || 'Event Tasks';
+    $('printDate').textContent = 'Printed ' + new Date().toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
+
+    // Always print every task, including completed ones, then restore the screen view
+    const wasHiding = state.hideDone;
+    if (wasHiding) { state.hideDone = false; render(); }
+    const restore = () => {
+      window.removeEventListener('afterprint', restore);
+      if (wasHiding) { state.hideDone = true; render(); }
+    };
+    window.addEventListener('afterprint', restore);
+    window.print();
   });
 </script>
 </body>
